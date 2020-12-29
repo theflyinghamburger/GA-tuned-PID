@@ -16,7 +16,7 @@ def process(y, t, u, Kp, taup):
     return dydt
 
 
-def closed_loop(Kc, tauI, tauD):  # Simulates 1st order transfer function system with PID, returns MSE as fitness value
+def closed_loop(Kp_, Ki, Kd):  # Simulates 1st order transfer function system with PID, returns MSE as fitness value
     # specify number of steps
     ns = 300
 
@@ -46,9 +46,11 @@ def closed_loop(Kc, tauI, tauD):  # Simulates 1st order transfer function system
         if i >= 1:  # calculate starting on second cycle
             dpv[i] = (pv[i] - pv[i - 1]) / delta_t
             ie[i] = ie[i - 1] + e[i] * delta_t
-        P[i] = Kc * e[i]
-        I[i] = Kc / tauI * ie[i]
-        D[i] = - Kc * tauD * dpv[i]
+        P[i] = Kp_ * e[i]
+        I[i] = Ki * ie[i]
+        D[i] = Kd * dpv[i]
+        # I[i] = Kc / tauI * ie[i]
+        # D[i] = - Kc * tauD * dpv[i]
         op[i] = op[0] + P[i] + I[i] + D[i]
         if op[i] > op_hi:  # check upper limit
             op[i] = op_hi
@@ -66,13 +68,13 @@ def closed_loop(Kc, tauI, tauD):  # Simulates 1st order transfer function system
     MSE = mean_squared_error(sp, pv)
     r2 = r2_score(sp, pv)
 
-    print('MSE : %.2f' % MSE)
+    #print('MSE : %.2f' % MSE)
     # print('r2 : %.2f' % r2)
     return MSE, t, sp, pv
 
 
 def generate_genome():
-    return choices(population=np.linspace(0.1, 20, 200), k=3)
+    return choices(population=np.linspace(0, 1000, 10000), k=3)
 
 
 def generate_population(pop_size):
@@ -85,9 +87,9 @@ def generate_population(pop_size):
 def fitness_func(pop):
     fit_pop = []
     for i in range(len(pop)):
-        print(i)
-        MSE_, time, setpt, pv_ = closed_loop(pop[i][0], pop[i][1], pop[i][2])
-        fit_pop.append(MSE_)  # MSE is fitness function result. Lower is better
+        #print(i)
+        MSE_in, time, setptin, pv_ = closed_loop(pop[i][0], pop[i][1], pop[i][2])
+        fit_pop.append(MSE_in)  # MSE is fitness function result. Lower is better
     return fit_pop
 
 
@@ -116,10 +118,10 @@ def fit_min(fit_pop, count):  # Returns list of top count number of index of res
         temp = 13000
         if rep_count > 0:
             last_j = -1
-            for j in range(len(in_fit_pop)):
-                if (in_fit_pop[j] < temp) and (in_fit_pop[j] > minimum):
-                    temp = in_fit_pop[j]
-                    last_j = j
+            for k in range(len(in_fit_pop)):
+                if (in_fit_pop[k] < temp) and (in_fit_pop[k] > minimum):
+                    temp = in_fit_pop[k]
+                    last_j = k
             if last_j > -1:
                 fit_min_index.append(last_j)
             rep_count = rep_count - 1
@@ -137,25 +139,35 @@ def fit_inv(fit_pop):  # Inverts fitness list values to make selection weight wo
     for i in range(len(fit_pop)):
         if fit_pop[i] > temp_max:
             temp_max = fit_pop[i]
-
+    print("Max gen MSE Val: " + str(temp_max))
     for i in range(len(fit_pop)):
         fit_pop[i] = temp_max - fit_pop[i]
     return fit_pop
 
 
 def crossover(genome0, genome1):
-    p = randint(1, 3)
-    mask = 0xF << p
-    mask_shift = 0xF >> p
-    print(p)
-    print(mask)
-    print(mask_shift)
-    print(genome0)
-    print(genome1)
-    print(genome0[0] & mask)
-    print(genome0[0] & mask_shift)
-    print(genome1[0] & mask)
-    print(genome1[0] & mask_shift)
+    new_genome0 = []
+    new_genome1 = []
+
+    for x in range(3):
+        p = randint(1, 11)
+        mask = 0xFFF << p        # preserves upper part of genome
+        mask_shift = 0xFFF >> p  # preserves upper part of genome
+        genome0[x] = int(genome0[x] * 10)
+        genome1[x] = int(genome0[x] * 10)
+        a = (genome0[x] & mask) + (genome1[x] & mask_shift)
+        a = a/10
+        if a > 1000:
+            a = 1000
+        new_genome0.append(a/10)
+        b = (genome0[x] & mask_shift) + (genome1[x] & mask)
+        b = b/10
+        if b > 1000:
+            b = 1000
+        new_genome1.append(b/10)
+
+    return new_genome0, new_genome1
+
 
 
 def graph_op(t, sp, pv):
@@ -170,25 +182,61 @@ def graph_op(t, sp, pv):
 
 
 pop_init = generate_population(100)
-print(pop_init)
-fitness = fitness_func(pop_init)
-top_fitness_index = fit_min(fitness, 10)
-print(top_fitness_index)
+print("Initial Population initiated")
+fitness = fitness_func(pop_init) # fitness matrix with MSE
+top_fitness_index = fit_min(fitness, 10)  # Index number of top 10 fitnesses
+
+average = 0
 for z in range(len(top_fitness_index)):
+    average = average + fitness[top_fitness_index[z]]
     print("Index " + str(z) + " = " + str(fitness[top_fitness_index[z]]))
-fitness = fit_inv(fitness)
-next_gen = []
 
-# Elitism, picks top 2 genomes
-print(pop_init[top_fitness_index[0]])
+average = average / len(top_fitness_index)
+print("Average of top 10 in generation = " + str(average))
+print("Top fitness indexes are:" + str(top_fitness_index))
+
+for m in range(100):
+    print("=======================================================================")
+    print("Gen " + str(m) + " Population initiated")
+
+    next_gen = []
+
+    # Elitism, picks top 2 genomes
+    next_gen.append(pop_init[top_fitness_index[0]])
+    next_gen.append(pop_init[top_fitness_index[1]])
+
+    print(next_gen)
+
+    fitness = fit_inv(fitness)  # Matrix of fitnesses invert
+    print(fitness)
+    print("Top genome of generation = " + str(next_gen[0]))
+    print("Pop_init length = " + str(len(pop_init)))
+
+    for j in range(2, (len(pop_init)//2)+1):
+        parent = selection_pair(pop_init, fitness)
+        offspring = crossover(parent[0], parent[1])
+        next_gen.append(offspring[0])
+        next_gen.append(offspring[1])
+    print("Gen length =" + str(len(next_gen)))
+
+    pop_init = next_gen
+
+    fitness = fitness_func(pop_init)
+    top_fitness_index = fit_min(fitness, 10)
+    average = 0
+    for z in range(len(top_fitness_index)):
+        average = average + fitness[top_fitness_index[z]]
+        print("Index " + str(z) + " = " + str(fitness[top_fitness_index[z]]))
+
+    average = average / len(top_fitness_index)
+    print("Average of top 10 in generation = " + str(average))
+
 MSE_, t, sp, pv = closed_loop(pop_init[top_fitness_index[0]][0], pop_init[top_fitness_index[0]][1], pop_init[top_fitness_index[0]][2])
-
 graph_op(t, sp, pv)
 
-# parent = selection_pair(pop_init, fitness)
-
-# fitness_func(parent)
-# crossover(parent[0], parent[1])
 '''
+
+MSE_, t, sp, pv = closed_loop(next_gen[top_fitness_index[0]][0], next_gen[top_fitness_index[0]][1], next_gen[top_fitness_index[0]][2])
+graph_op(t, sp, pv)
 
 '''
