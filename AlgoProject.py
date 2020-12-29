@@ -152,7 +152,7 @@ def crossover(genome0, genome1):
     for x in range(3):
         p = randint(1, 11)
         mask = 0xFFF << p        # preserves upper part of genome
-        mask_shift = 0xFFF >> p  # preserves upper part of genome
+        mask_shift = 0xFFF >> p  # preserves lower part of genome
         genome0[x] = int(genome0[x] * 10)
         genome1[x] = int(genome0[x] * 10)
         a = (genome0[x] & mask) + (genome1[x] & mask_shift)
@@ -168,7 +168,16 @@ def crossover(genome0, genome1):
 
     return new_genome0, new_genome1
 
-
+def mutation(pop):
+    for n in range(3):
+        for genome in range(len(pop)):
+            prob = randint(0, 100)
+            if prob < 11:
+                p = randint(1, 11)
+                pop[genome][n] = int(pop[genome][n] * 10)
+                pop[genome][n] = pop[genome][n] ^ (1 << (p - 1))  # Toggle random bit
+                pop[genome][n] = pop[genome][n] / 10
+    return pop
 
 def graph_op(t, sp, pv):
     plt.figure(1)
@@ -201,28 +210,29 @@ for m in range(100):
 
     next_gen = []
 
-    # Elitism, picks top 2 genomes
-    next_gen.append(pop_init[top_fitness_index[0]])
-    next_gen.append(pop_init[top_fitness_index[1]])
-
-    print(next_gen)
+    # Elitism, picks top 6 genomes
+    for elite in range(6):
+        next_gen.append(pop_init[top_fitness_index[elite]])
 
     fitness = fit_inv(fitness)  # Matrix of fitnesses invert
-    print(fitness)
     print("Top genome of generation = " + str(next_gen[0]))
     print("Pop_init length = " + str(len(pop_init)))
 
-    for j in range(2, (len(pop_init)//2)+1):
+    for j in range(6, (len(pop_init)//2)+3):
         parent = selection_pair(pop_init, fitness)
         offspring = crossover(parent[0], parent[1])
         next_gen.append(offspring[0])
         next_gen.append(offspring[1])
     print("Gen length =" + str(len(next_gen)))
 
+    mutation(next_gen)
+
     pop_init = next_gen
 
     fitness = fitness_func(pop_init)
+
     top_fitness_index = fit_min(fitness, 10)
+
     average = 0
     for z in range(len(top_fitness_index)):
         average = average + fitness[top_fitness_index[z]]
@@ -233,10 +243,3 @@ for m in range(100):
 
 MSE_, t, sp, pv = closed_loop(pop_init[top_fitness_index[0]][0], pop_init[top_fitness_index[0]][1], pop_init[top_fitness_index[0]][2])
 graph_op(t, sp, pv)
-
-'''
-
-MSE_, t, sp, pv = closed_loop(next_gen[top_fitness_index[0]][0], next_gen[top_fitness_index[0]][1], next_gen[top_fitness_index[0]][2])
-graph_op(t, sp, pv)
-
-'''
