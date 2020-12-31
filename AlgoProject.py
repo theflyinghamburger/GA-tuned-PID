@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 from sklearn.metrics import r2_score, mean_squared_error
 from random import choices, randint
+import time
 
 # process model
 Kp = 3.0
@@ -179,17 +180,20 @@ def mutation(pop):
                 pop[genome][n] = pop[genome][n] / 10
     return pop
 
-def graph_op(t, sp, pv):
+def graph_op(t, sp, pv, pv_init):
     plt.figure(1)
+    plt.plot(t, pv_init, 'r-', linewidth=2)
     plt.plot(t, sp, 'k-', linewidth=2)
     plt.plot(t, pv, 'b--', linewidth=3)
-    plt.legend(['Set Point (SP)', 'Process Variable (PV)'], loc='best')
+
+    plt.legend(['Initial Process Variable (PV_init)', 'Set Point (SP)', 'Tuned Process Variable (PV)'], loc='best')
     plt.ylabel('Process')
-    plt.ylim([-0.1, 12])
+    plt.ylim([-0.1, 20])
     plt.xlabel('Time')
     plt.show()
 
 
+start = time.time()
 pop_init = generate_population(100)
 print("Initial Population initiated")
 fitness = fitness_func(pop_init) # fitness matrix with MSE
@@ -202,9 +206,12 @@ for z in range(len(top_fitness_index)):
 
 average = average / len(top_fitness_index)
 print("Average of top 10 in generation = " + str(average))
-print("Top fitness indexes are:" + str(top_fitness_index))
+print("Top genome of generation = " + str(pop_init[top_fitness_index[z]]))
 
-for m in range(100):
+MSE_, t, sp, pv_init = closed_loop(pop_init[top_fitness_index[0]][0], pop_init[top_fitness_index[0]][1], pop_init[top_fitness_index[0]][2])
+
+
+for m in range(50):
     print("=======================================================================")
     print("Gen " + str(m) + " Population initiated")
 
@@ -241,5 +248,11 @@ for m in range(100):
     average = average / len(top_fitness_index)
     print("Average of top 10 in generation = " + str(average))
 
+finish = time.time()
+operation_time = finish - start
+avr_op = operation_time/51
+print('Total time of execution ' + str(operation_time) + " secs")
+print('Average time per generation ' + str(avr_op) + " secs")
+
 MSE_, t, sp, pv = closed_loop(pop_init[top_fitness_index[0]][0], pop_init[top_fitness_index[0]][1], pop_init[top_fitness_index[0]][2])
-graph_op(t, sp, pv)
+graph_op(t, sp, pv, pv_init)
